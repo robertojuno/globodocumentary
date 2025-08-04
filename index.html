@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8" />
-<title>Globo con nomi video e miniatura cliccabile</title>
+<title>Globo con video e link cliccabile sul nome</title>
 <style>
   body { margin: 0; background: black; overflow: hidden; }
   #globeViz { width: 100vw; height: 100vh; }
@@ -13,19 +13,23 @@
     padding: 8px 12px;
     border-radius: 6px;
     font-family: Arial, sans-serif;
-    pointer-events: auto;
+    pointer-events: none;
     max-width: 220px;
     display: none;
     z-index: 10;
     box-shadow: 0 0 12px #4aff4a;
   }
+  #tooltip img {
+    width: 200px;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    display: block;
+  }
   #tooltip a {
     color: #4aff4a;
-    text-decoration: none;
-    font-weight: bold;
-  }
-  #tooltip a:hover {
     text-decoration: underline;
+    font-weight: bold;
+    cursor: pointer;
   }
 </style>
 <script src="https://unpkg.com/globe.gl"></script>
@@ -63,7 +67,7 @@
     .atmosphereColor('rgba(80,255,80,0.3)')
     .atmosphereAltitude(0.15);
 
-  // Carico confini con linee verdi fluo sottili
+  // Confini verde fluo sottili
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
     .then(res => res.json())
     .then(worldData => {
@@ -75,7 +79,7 @@
         .polygonAltitude(0.01);
     });
 
-  // Pallini verdi lampeggianti con nomi video accanto
+  // Pallini verdi lampeggianti
   globe.pointsData(videos)
     .pointLat('lat')
     .pointLng('lng')
@@ -84,28 +88,24 @@
     .pointRadius(0.015)
     .pointsTransitionDuration(0);
 
-  // Mostra nomi video come label sempre visibili
+  // Nomi video come etichette cliccabili
   globe.labelsData(videos)
     .labelLat('lat')
     .labelLng('lng')
-    .labelText('title')
+    .labelText(d => `<a href="${d.url}" target="_blank" style="color:#4aff4a; text-decoration:underline;">${d.title}</a>`)
     .labelSize(1.2)
     .labelColor(() => '#4aff4a')
     .labelDotRadius(0)
     .labelResolution(2);
 
-  // Tooltip miniatura e link al video
+  // Tooltip con miniatura al click sul pallino (solo immagine)
   const tooltip = document.getElementById('tooltip');
 
   globe.onPointClick(point => {
     tooltip.style.display = 'block';
     tooltip.style.left = (window.event.clientX + 10) + 'px';
     tooltip.style.top = (window.event.clientY + 10) + 'px';
-    tooltip.innerHTML = `
-      <a href="${point.url}" target="_blank" rel="noopener noreferrer" style="display:block;">
-        <img src="https://img.youtube.com/vi/${point.videoId}/hqdefault.jpg" alt="${point.title}" style="width:200px; border-radius:5px; margin-bottom:5px;" />
-        ${point.title}
-      </a>`;
+    tooltip.innerHTML = `<img src="https://img.youtube.com/vi/${point.videoId}/hqdefault.jpg" alt="${point.title}" />`;
   });
 
   // Nascondo tooltip cliccando fuori
@@ -115,7 +115,7 @@
     }
   });
 
-  // Luce solare giorno/notte (semplificata)
+  // Luce giorno/notte semplificata
   const scene = globe.scene();
   const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
   scene.add(sunLight);
