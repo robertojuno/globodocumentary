@@ -2,42 +2,102 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Globo Video con Stati</title>
+  <title>Globo con Miniature Video e Pallini Verdi</title>
   <style>
     body { margin: 0; background: black; }
     canvas { display: block; }
+
+    /* Stile per pallino verde lampeggiante */
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(0, 255, 0, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+      }
+    }
+
+    .green-dot {
+      width: 12px;
+      height: 12px;
+      background-color: #00ff00;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+      border: 1.5px solid white;
+      cursor: default;
+    }
   </style>
   <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
   <div id="globeViz" style="width: 100vw; height: 100vh;"></div>
+
+  <script src="https://unpkg.com/topojson@3"></script>
   <script>
-    const data = [
+    const videos = [
       {
         lat: 43.8562586,
         lng: 18.41330763,
-        text: '🎥 Sarajevo',
-        link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
+        title: 'Sarajevo',
+        videoId: 'GqQKJHXoUD8',
+        url: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
       },
       {
         lat: 28.0026,
         lng: 86.8528,
-        text: '🎬 Everest Basecamp',
-        link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
+        title: 'Everest Basecamp',
+        videoId: 'q7_jPoJM-Jc',
+        url: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
       }
     ];
 
-    Globe()
-      (document.getElementById('globeViz'))
+    const globe = Globe()(document.getElementById('globeViz'))
       .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
       .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
       .showAtmosphere(true)
-      .pointOfView({ lat: 20, lng: 0, altitude: 2 })
-      .labelsData(data)
-      .labelText('text')
-      .labelSize(1.6)
-      .labelColor(() => 'white')
-      .onLabelClick(d => window.open(d.link, '_blank'));
+      .pointOfView({ lat: 20, lng: 0, altitude: 2 });
+
+    // Carico confini paesi
+    const worldAtlasUrl =
+      'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+    fetch(worldAtlasUrl)
+      .then(res => res.json())
+      .then(worldData => {
+        const countries = topojson.feature(worldData, worldData.objects.countries).features;
+        globe.polygonsData(countries)
+          .polygonStrokeColor(() => 'white')
+          .polygonAltitude(0.01)
+          .polygonCapColor(() => 'rgba(255, 255, 255, 0.1)');
+      });
+
+    // Pallini verdi lampeggianti (posizione esatta)
+    globe.pointsData(videos)
+      .pointLat(d => d.lat)
+      .pointLng(d => d.lng)
+      .pointAltitude(0.05)
+      .pointColor(() => 'limegreen')
+      .pointRadius(0.1)
+      .pointLabel(d => d.title);
+
+    // Miniature come elementi HTML con click
+    globe.htmlElementsData(videos)
+      .htmlElement(d => {
+        const el = document.createElement('img');
+        el.src = `https://img.youtube.com/vi/${d.videoId}/hqdefault.jpg`;
+        el.style.width = '60px';
+        el.style.height = '40px';
+        el.style.borderRadius = '6px';
+        el.style.cursor = 'pointer';
+        el.title = d.title;
+        el.onclick = () => window.open(d.url, '_blank');
+        return el;
+      })
+      .elementAltitude(0.12);
+
   </script>
 </body>
 </html>
