@@ -2,42 +2,113 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Globo Video con Stati</title>
+  <title>Globo Video Live</title>
   <style>
-    body { margin: 0; background: black; }
-    canvas { display: block; }
+    body { margin: 0; background: black; overflow: hidden; }
+    #globeViz { width: 100vw; height: 100vh; }
+    .label-link {
+      color: white;
+      cursor: pointer;
+      text-shadow: 0 0 5px black;
+      user-select: none;
+    }
   </style>
   <script src="https://unpkg.com/globe.gl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/topojson@3"></script>
 </head>
 <body>
-  <div id="globeViz" style="width: 100vw; height: 100vh;"></div>
-  <script>
-    const data = [
-      {
-        lat: 43.8562586,
-        lng: 18.41330763,
-        text: 'Sarajevo',
-        link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
-      },
-      {
-        lat: 28.0026,
-        lng: 86.8528,
-        text: 'Everest Basecamp',
-        link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
-      }
-    ];
+  <div id="globeViz"></div>
 
-    Globe()
-      (document.getElementById('globeViz'))
-      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-      .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-      .showAtmosphere(true)
-      .pointOfView({ lat: 20, lng: 0, altitude: 2 })
-      .labelsData(data)
-      .labelText('text')
-      .labelSize(1.6)
-      .labelColor(() => 'white')
-      .onLabelClick(d => window.open(d.link, '_blank'));
-  </script>
+<script>
+  const videos = [
+    {
+      lat: 43.8562586,
+      lng: 18.41330763,
+      text: 'Sarajevo',
+      link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
+    },
+    {
+      lat: 28.0026,
+      lng: 86.8528,
+      text: 'Everest Basecamp',
+      link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
+    }
+  ];
+
+  const globe = Globe()(document.getElementById('globeViz'))
+    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
+    .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+    .backgroundColor('black')
+    .showAtmosphere(true)
+    .atmosphereColor('rgba(0,255,0,0.3)')
+    .atmosphereAltitude(0.15)
+    .pointOfView({ lat: 20, lng: 0, altitude: 2 });
+
+  // Carica i confini dei paesi e disegna contorni verdi sottili
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    .then(res => res.json())
+    .then(worldData => {
+      const countries = topojson.feature(worldData, worldData.objects.countries).features;
+      globe.polygonsData(countries)
+        .polygonCapColor(() => 'rgba(0,0,0,0)')
+        .polygonStrokeColor(() => '#00ff00')
+        .polygonStrokeWidth(0.7)
+        .polygonAltitude(0.01);
+    });
+
+  // Pallini lampeggianti verdi per i video
+  globe.pointsData(videos)
+    .pointLat('lat')
+    .pointLng('lng')
+    .pointColor(() => 'limegreen')
+    .pointAltitude(0.03)
+    .pointRadius(0.02)
+    .pointsTransitionDuration(0);
+
+  // Animazione lampeggio pallini
+  let pulseDirection = 1;
+  let pulseRadius = 0.02;
+  setInterval(() => {
+    pulseRadius += 0.002 * pulseDirection;
+    if(pulseRadius > 0.035) pulseDirection = -1;
+    if(pulseRadius < 0.02) pulseDirection = 1;
+    globe.pointRadius(pulseRadius);
+  }, 100);
+
+  // Etichette cliccabili (testo) con link ai video
+  globe.labelsData(videos)
+    .labelLat('lat')
+    .labelLng('lng')
+    .labelText(d => d.text)
+    .labelSize(1.6)
+    .labelColor(() => 'white')
+    .labelDotRadius(0)
+    .labelResolution(2)
+    .onLabelClick(d => window.open(d.link, '_blank'));
+
+  // Luce solare per effetto giorno/notte semplificato
+  const scene = globe.scene();
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+  scene.add(sunLight);
+
+  function updateSunPosition() {
+    const now = new Date();
+    const secondsInDay = 86400;
+    const time = (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()) / secondsInDay;
+    const lng = (time * 360) - 180;
+    const lat = 0;
+    const phi = (90 - lat) * Math.PI / 180;
+    const theta = (lng + 180) * Math.PI / 180;
+    const radius = 5;
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi);
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    sunLight.position.set(x, y, z);
+  }
+
+  updateSunPosition();
+  setInterval(updateSunPosition, 60000);
+</script>
 </body>
 </html>
