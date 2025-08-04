@@ -1,140 +1,43 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8" />
-<title>Globo con video e link cliccabile sul nome</title>
-<style>
-  body { margin: 0; background: black; overflow: hidden; }
-  #globeViz { width: 100vw; height: 100vh; }
-  #tooltip {
-    position: absolute;
-    background: rgba(0,0,0,0.85);
-    color: #4aff4a;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-family: Arial, sans-serif;
-    pointer-events: none;
-    max-width: 220px;
-    display: none;
-    z-index: 10;
-    box-shadow: 0 0 12px #4aff4a;
-  }
-  #tooltip img {
-    width: 200px;
-    border-radius: 5px;
-    margin-bottom: 5px;
-    display: block;
-  }
-  #tooltip a {
-    color: #4aff4a;
-    text-decoration: underline;
-    font-weight: bold;
-    cursor: pointer;
-  }
-</style>
-<script src="https://unpkg.com/globe.gl"></script>
-<script src="https://unpkg.com/topojson@3"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>Globo Video con Stati</title>
+  <style>
+    body { margin: 0; background: black; }
+    canvas { display: block; }
+  </style>
+  <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
-  <div id="globeViz"></div>
-  <div id="tooltip"></div>
+  <div id="globeViz" style="width: 100vw; height: 100vh;"></div>
+  <script>
+    const data = [
+      {
+        lat: 43.8562586,
+        lng: 18.41330763,
+        text: 'Sarajevo',
+        link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
+      },
+      {
+        lat: 28.0026,
+        lng: 86.8528,
+        text: 'Everest Basecamp',
+        link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
+      }
+    ];
 
-<script>
-  const videos = [
-    {
-      lat: 43.8562586,
-      lng: 18.41330763,
-      title: 'Sarajevo',
-      videoId: 'GqQKJHXoUD8',
-      url: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
-    },
-    {
-      lat: 28.0026,
-      lng: 86.8528,
-      title: 'Everest Basecamp',
-      videoId: 'q7_jPoJM-Jc',
-      url: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
-    }
-  ];
-
-  const globe = Globe()(document.getElementById('globeViz'))
-    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-    .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundColor('black')
-    .pointOfView({ lat: 20, lng: 0, altitude: 2 })
-    .showAtmosphere(true)
-    .atmosphereColor('rgba(80,255,80,0.3)')
-    .atmosphereAltitude(0.15);
-
-  // Confini verde fluo sottili
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-    .then(res => res.json())
-    .then(worldData => {
-      const countries = topojson.feature(worldData, worldData.objects.countries).features;
-      globe.polygonsData(countries)
-        .polygonCapColor(() => 'rgba(0,0,0,0)')
-        .polygonStrokeColor(() => '#4aff4a')
-        .polygonStrokeWidth(0.7)
-        .polygonAltitude(0.01);
-    });
-
-  // Pallini verdi lampeggianti
-  globe.pointsData(videos)
-    .pointLat('lat')
-    .pointLng('lng')
-    .pointColor(() => 'limegreen')
-    .pointAltitude(0.02)
-    .pointRadius(0.015)
-    .pointsTransitionDuration(0);
-
-  // Nomi video come etichette cliccabili
-  globe.labelsData(videos)
-    .labelLat('lat')
-    .labelLng('lng')
-    .labelText(d => `<a href="${d.url}" target="_blank" style="color:#4aff4a; text-decoration:underline;">${d.title}</a>`)
-    .labelSize(1.2)
-    .labelColor(() => '#4aff4a')
-    .labelDotRadius(0)
-    .labelResolution(2);
-
-  // Tooltip con miniatura al click sul pallino (solo immagine)
-  const tooltip = document.getElementById('tooltip');
-
-  globe.onPointClick(point => {
-    tooltip.style.display = 'block';
-    tooltip.style.left = (window.event.clientX + 10) + 'px';
-    tooltip.style.top = (window.event.clientY + 10) + 'px';
-    tooltip.innerHTML = `<img src="https://img.youtube.com/vi/${point.videoId}/hqdefault.jpg" alt="${point.title}" />`;
-  });
-
-  // Nascondo tooltip cliccando fuori
-  window.addEventListener('click', e => {
-    if (!tooltip.contains(e.target)) {
-      tooltip.style.display = 'none';
-    }
-  });
-
-  // Luce giorno/notte semplificata
-  const scene = globe.scene();
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  scene.add(sunLight);
-
-  function updateSunPosition() {
-    const now = new Date();
-    const dayProgress = (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()) / 86400;
-    const sunLng = (dayProgress * 360) - 180;
-    const sunLat = 0;
-    const phi = (90 - sunLat) * Math.PI/180;
-    const theta = (sunLng + 180) * Math.PI/180;
-    const radius = 5;
-    const x = radius * Math.sin(phi) * Math.cos(theta);
-    const y = radius * Math.cos(phi);
-    const z = radius * Math.sin(phi) * Math.sin(theta);
-    sunLight.position.set(x,y,z);
-  }
-  updateSunPosition();
-  setInterval(updateSunPosition, 60000);
-</script>
+    Globe()
+      (document.getElementById('globeViz'))
+      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
+      .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+      .showAtmosphere(true)
+      .pointOfView({ lat: 20, lng: 0, altitude: 2 })
+      .labelsData(data)
+      .labelText('text')
+      .labelSize(1.6)
+      .labelColor(() => 'white')
+      .onLabelClick(d => window.open(d.link, '_blank'));
+  </script>
 </body>
 </html>
