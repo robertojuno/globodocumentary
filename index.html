@@ -7,7 +7,6 @@
     body { margin: 0; background: black; }
     canvas { display: block; }
 
-    /* Stile per pallino verde lampeggiante */
     @keyframes pulse {
       0% {
         box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
@@ -83,7 +82,7 @@
       .pointRadius(0.1)
       .pointLabel(d => d.title);
 
-    // Miniature come elementi HTML con click
+    // Miniature come elementi HTML (visibili ma senza onclick)
     globe.htmlElementsData(videos)
       .htmlElement(d => {
         const el = document.createElement('img');
@@ -93,11 +92,16 @@
         el.style.borderRadius = '6px';
         el.style.cursor = 'pointer';
         el.title = d.title;
-        el.onclick = () => window.open(d.url, '_blank');
         return el;
       })
       .elementAltitude(0.12);
 
+    // Gestisco il click per aprire il video
+    globe.onGlobeClick(({ object }) => {
+      if (object && object.url) {
+        window.open(object.url, '_blank');
+      }
+    });
   </script>
 </body>
 </html>
