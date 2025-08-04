@@ -1,157 +1,140 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <title>Globo con Pallini e Popup Miniature Video</title>
-  <style>
-    body { margin: 0; background: black; }
-    #globeViz { width: 100vw; height: 100vh; }
-    /* Stile tooltip */
-    #tooltip {
-      position: absolute;
-      background: rgba(0,0,0,0.8);
-      color: white;
-      padding: 8px;
-      border-radius: 6px;
-      pointer-events: auto;
-      max-width: 220px;
-      font-family: Arial, sans-serif;
-      display: none;
-      z-index: 10;
-    }
-    #tooltip img {
-      width: 200px;
-      border-radius: 4px;
-      display: block;
-      margin-bottom: 6px;
-    }
-    #tooltip a {
-      color: #4fc3f7;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    #tooltip a:hover {
-      text-decoration: underline;
-    }
-  </style>
-  <script src="https://unpkg.com/globe.gl"></script>
-  <script src="https://unpkg.com/topojson@3"></script>
+<meta charset="UTF-8" />
+<title>Globo con nomi video e miniatura cliccabile</title>
+<style>
+  body { margin: 0; background: black; overflow: hidden; }
+  #globeViz { width: 100vw; height: 100vh; }
+  #tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.85);
+    color: #4aff4a;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: Arial, sans-serif;
+    pointer-events: auto;
+    max-width: 220px;
+    display: none;
+    z-index: 10;
+    box-shadow: 0 0 12px #4aff4a;
+  }
+  #tooltip a {
+    color: #4aff4a;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  #tooltip a:hover {
+    text-decoration: underline;
+  }
+</style>
+<script src="https://unpkg.com/globe.gl"></script>
+<script src="https://unpkg.com/topojson@3"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 </head>
 <body>
   <div id="globeViz"></div>
   <div id="tooltip"></div>
 
-  <script>
-    const videos = [
-      {
-        lat: 43.8562586,
-        lng: 18.41330763,
-        title: 'Sarajevo',
-        videoId: 'GqQKJHXoUD8',
-        url: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
-      },
-      {
-        lat: 28.0026,
-        lng: 86.8528,
-        title: 'Everest Basecamp',
-        videoId: 'q7_jPoJM-Jc',
-        url: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
-      }
-    ];
-
-    const globe = Globe()(document.getElementById('globeViz'))
-      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-      .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-      .showAtmosphere(true)
-      .pointOfView({ lat: 20, lng: 0, altitude: 2 })
-      .polygonsData([])
-      .labelsData([]) // niente label testuali ora
-      ;
-
-    // Carico confini paesi
-    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-      .then(res => res.json())
-      .then(worldData => {
-        const countries = topojson.feature(worldData, worldData.objects.countries).features;
-        globe.polygonsData(countries)
-          .polygonStrokeColor(() => 'white')
-          .polygonAltitude(0.01)
-          .polygonCapColor(() => 'rgba(255, 255, 255, 0.1)');
-      });
-
-    // Tooltip div
-    const tooltip = document.getElementById('tooltip');
-
-    // Aggiungo i punti (pallini verdi lampeggianti)
-    globe.pointsData(videos)
-      .pointLat('lat')
-      .pointLng('lng')
-      .pointColor(() => 'limegreen')
-      .pointAltitude(0.02)
-      .pointRadius(0.01)
-      .pointsTransitionDuration(0);
-
-    // Funzione per mostrare tooltip
-    function showTooltip(event, video) {
-      const globeRect = globe.renderer().domElement.getBoundingClientRect();
-      tooltip.style.left = (event.clientX + 10) + 'px';
-      tooltip.style.top = (event.clientY + 10) + 'px';
-      tooltip.style.display = 'block';
-      tooltip.innerHTML = `
-        <img src="https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg" alt="${video.title}" />
-        <div><strong>${video.title}</strong></div>
-        <a href="${video.url}" target="_blank" rel="noopener noreferrer">Guarda il video</a>
-      `;
+<script>
+  const videos = [
+    {
+      lat: 43.8562586,
+      lng: 18.41330763,
+      title: 'Sarajevo',
+      videoId: 'GqQKJHXoUD8',
+      url: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
+    },
+    {
+      lat: 28.0026,
+      lng: 86.8528,
+      title: 'Everest Basecamp',
+      videoId: 'q7_jPoJM-Jc',
+      url: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
     }
+  ];
 
-    // Nascondi tooltip
-    function hideTooltip() {
+  const globe = Globe()(document.getElementById('globeViz'))
+    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
+    .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+    .backgroundColor('black')
+    .pointOfView({ lat: 20, lng: 0, altitude: 2 })
+    .showAtmosphere(true)
+    .atmosphereColor('rgba(80,255,80,0.3)')
+    .atmosphereAltitude(0.15);
+
+  // Carico confini con linee verdi fluo sottili
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    .then(res => res.json())
+    .then(worldData => {
+      const countries = topojson.feature(worldData, worldData.objects.countries).features;
+      globe.polygonsData(countries)
+        .polygonCapColor(() => 'rgba(0,0,0,0)')
+        .polygonStrokeColor(() => '#4aff4a')
+        .polygonStrokeWidth(0.7)
+        .polygonAltitude(0.01);
+    });
+
+  // Pallini verdi lampeggianti con nomi video accanto
+  globe.pointsData(videos)
+    .pointLat('lat')
+    .pointLng('lng')
+    .pointColor(() => 'limegreen')
+    .pointAltitude(0.02)
+    .pointRadius(0.015)
+    .pointsTransitionDuration(0);
+
+  // Mostra nomi video come label sempre visibili
+  globe.labelsData(videos)
+    .labelLat('lat')
+    .labelLng('lng')
+    .labelText('title')
+    .labelSize(1.2)
+    .labelColor(() => '#4aff4a')
+    .labelDotRadius(0)
+    .labelResolution(2);
+
+  // Tooltip miniatura e link al video
+  const tooltip = document.getElementById('tooltip');
+
+  globe.onPointClick(point => {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (window.event.clientX + 10) + 'px';
+    tooltip.style.top = (window.event.clientY + 10) + 'px';
+    tooltip.innerHTML = `
+      <a href="${point.url}" target="_blank" rel="noopener noreferrer" style="display:block;">
+        <img src="https://img.youtube.com/vi/${point.videoId}/hqdefault.jpg" alt="${point.title}" style="width:200px; border-radius:5px; margin-bottom:5px;" />
+        ${point.title}
+      </a>`;
+  });
+
+  // Nascondo tooltip cliccando fuori
+  window.addEventListener('click', e => {
+    if (!tooltip.contains(e.target)) {
       tooltip.style.display = 'none';
-      tooltip.innerHTML = '';
     }
+  });
 
-    // Gestisco click sui punti
-    globe.onPointClick(point => {
-      // Se tooltip è già aperto su questo punto, chiudo
-      if (tooltip.style.display === 'block') {
-        hideTooltip();
-      } else {
-        // Mostro tooltip nella posizione mouse (aggiornata via evento globale click)
-        // Qui serve passare evento mouse, quindi mettiamo listener globale
-      }
-    });
+  // Luce solare giorno/notte (semplificata)
+  const scene = globe.scene();
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  scene.add(sunLight);
 
-    // Listener globale per click che mostra tooltip se clicco su punto
-    globe.renderer().domElement.addEventListener('click', event => {
-      // Trovo se click è sopra un punto
-      const mouse = {
-        x: (event.clientX / window.innerWidth) * 2 - 1,
-        y: -(event.clientY / window.innerHeight) * 2 + 1
-      };
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, globe.camera());
-      const intersects = raycaster.intersectObjects(globe.pointsData().map(p => globe.pointObjects().get(p)));
-
-      // Trovo punto più vicino cliccato (usiamo globe api punti)
-      const intersectedPoint = globe.pointObjects().find(obj => obj.material.color.getStyle() === 'limegreen' && intersects.some(i => i.object === obj));
-
-      if (intersectedPoint) {
-        // Punto cliccato trovato, cerco video corrispondente
-        const index = globe.pointObjects().indexOf(intersectedPoint);
-        const video = videos[index];
-        showTooltip(event, video);
-      } else {
-        hideTooltip();
-      }
-    });
-
-    // Nascondo tooltip cliccando fuori
-    window.addEventListener('click', e => {
-      if (!tooltip.contains(e.target) && !globe.renderer().domElement.contains(e.target)) {
-        hideTooltip();
-      }
-    });
-
-  </script>
+  function updateSunPosition() {
+    const now = new Date();
+    const dayProgress = (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()) / 86400;
+    const sunLng = (dayProgress * 360) - 180;
+    const sunLat = 0;
+    const phi = (90 - sunLat) * Math.PI/180;
+    const theta = (sunLng + 180) * Math.PI/180;
+    const radius = 5;
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi);
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    sunLight.position.set(x,y,z);
+  }
+  updateSunPosition();
+  setInterval(updateSunPosition, 60000);
+</script>
 </body>
 </html>
