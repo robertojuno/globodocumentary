@@ -2,33 +2,12 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Globo con Miniature Video e Pallini Verdi</title>
+  <title>Globo con Miniature Video e Pallini Verdi (sprite)</title>
   <style>
     body { margin: 0; background: black; }
     canvas { display: block; }
-
-    @keyframes pulse {
-      0% {
-        box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
-      }
-      70% {
-        box-shadow: 0 0 0 10px rgba(0, 255, 0, 0);
-      }
-      100% {
-        box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
-      }
-    }
-
-    .green-dot {
-      width: 12px;
-      height: 12px;
-      background-color: #00ff00;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-      border: 1.5px solid white;
-      cursor: default;
-    }
   </style>
+  <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
   <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
@@ -73,35 +52,59 @@
           .polygonCapColor(() => 'rgba(255, 255, 255, 0.1)');
       });
 
-    // Pallini verdi lampeggianti (posizione esatta)
-    globe.pointsData(videos)
-      .pointLat(d => d.lat)
-      .pointLng(d => d.lng)
-      .pointAltitude(0.05)
-      .pointColor(() => 'limegreen')
-      .pointRadius(0.1)
-      .pointLabel(d => d.title);
+    // Funzione per creare sprite da url immagine
+    function createSprite(url) {
+      const texture = new THREE.TextureLoader().load(url);
+      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, sizeAttenuation: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(6, 4, 1); // dimensioni sprite (adatta a miniatura)
+      return sprite;
+    }
 
-    // Miniature come elementi HTML (visibili ma senza onclick)
-    globe.htmlElementsData(videos)
-      .htmlElement(d => {
-        const el = document.createElement('img');
-        el.src = `https://img.youtube.com/vi/${d.videoId}/hqdefault.jpg`;
-        el.style.width = '60px';
-        el.style.height = '40px';
-        el.style.borderRadius = '6px';
-        el.style.cursor = 'pointer';
-        el.title = d.title;
-        return el;
-      })
-      .elementAltitude(0.12);
+    // Aggiungo marker sprite al globo
+    videos.forEach(video => {
+      const sprite = createSprite(`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`);
+      // Posizione in coordinate XYZ (raggio 1 + altezza)
+      const radius = 1.01;
+      const phi = (90 - video.lat) * (Math.PI / 180);
+      const theta = (video.lng + 180) * (Math.PI / 180);
 
-    // Gestisco il click per aprire il video
-    globe.onGlobeClick(({ object }) => {
-      if (object && object.url) {
-        window.open(object.url, '_blank');
-      }
+      sprite.position.set(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+
+      // Salvo url nel sprite per aprire video
+      sprite.userData = { url: video.url };
+
+      globe.scene().add(sprite);
     });
+
+    // Gestisco click: controllo se clicco su sprite
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    function onClick(event) {
+      const rect = globe.renderer().domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, globe.camera());
+
+      const intersects = raycaster.intersectObjects(globe.scene().children);
+
+      for (let i = 0; i < intersects.length; i++) {
+        const obj = intersects[i].object;
+        if (obj.userData && obj.userData.url) {
+          window.open(obj.userData.url, '_blank');
+          break;
+        }
+      }
+    }
+
+    globe.renderer().domElement.addEventListener('click', onClick);
+
   </script>
 </body>
 </html>
