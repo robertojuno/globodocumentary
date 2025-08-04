@@ -2,18 +2,45 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Globo con Miniature Video e Pallini Verdi (sprite)</title>
+  <title>Globo con Pallini e Popup Miniature Video</title>
   <style>
     body { margin: 0; background: black; }
-    canvas { display: block; }
+    #globeViz { width: 100vw; height: 100vh; }
+    /* Stile tooltip */
+    #tooltip {
+      position: absolute;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px;
+      border-radius: 6px;
+      pointer-events: auto;
+      max-width: 220px;
+      font-family: Arial, sans-serif;
+      display: none;
+      z-index: 10;
+    }
+    #tooltip img {
+      width: 200px;
+      border-radius: 4px;
+      display: block;
+      margin-bottom: 6px;
+    }
+    #tooltip a {
+      color: #4fc3f7;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    #tooltip a:hover {
+      text-decoration: underline;
+    }
   </style>
-  <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
   <script src="https://unpkg.com/globe.gl"></script>
+  <script src="https://unpkg.com/topojson@3"></script>
 </head>
 <body>
-  <div id="globeViz" style="width: 100vw; height: 100vh;"></div>
+  <div id="globeViz"></div>
+  <div id="tooltip"></div>
 
-  <script src="https://unpkg.com/topojson@3"></script>
   <script>
     const videos = [
       {
@@ -36,13 +63,13 @@
       .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
       .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
       .showAtmosphere(true)
-      .pointOfView({ lat: 20, lng: 0, altitude: 2 });
+      .pointOfView({ lat: 20, lng: 0, altitude: 2 })
+      .polygonsData([])
+      .labelsData([]) // niente label testuali ora
+      ;
 
     // Carico confini paesi
-    const worldAtlasUrl =
-      'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
-
-    fetch(worldAtlasUrl)
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
       .then(res => res.json())
       .then(worldData => {
         const countries = topojson.feature(worldData, worldData.objects.countries).features;
@@ -52,58 +79,78 @@
           .polygonCapColor(() => 'rgba(255, 255, 255, 0.1)');
       });
 
-    // Funzione per creare sprite da url immagine
-    function createSprite(url) {
-      const texture = new THREE.TextureLoader().load(url);
-      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, sizeAttenuation: false });
-      const sprite = new THREE.Sprite(material);
-      sprite.scale.set(6, 4, 1); // dimensioni sprite (adatta a miniatura)
-      return sprite;
+    // Tooltip div
+    const tooltip = document.getElementById('tooltip');
+
+    // Aggiungo i punti (pallini verdi lampeggianti)
+    globe.pointsData(videos)
+      .pointLat('lat')
+      .pointLng('lng')
+      .pointColor(() => 'limegreen')
+      .pointAltitude(0.02)
+      .pointRadius(0.01)
+      .pointsTransitionDuration(0);
+
+    // Funzione per mostrare tooltip
+    function showTooltip(event, video) {
+      const globeRect = globe.renderer().domElement.getBoundingClientRect();
+      tooltip.style.left = (event.clientX + 10) + 'px';
+      tooltip.style.top = (event.clientY + 10) + 'px';
+      tooltip.style.display = 'block';
+      tooltip.innerHTML = `
+        <img src="https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg" alt="${video.title}" />
+        <div><strong>${video.title}</strong></div>
+        <a href="${video.url}" target="_blank" rel="noopener noreferrer">Guarda il video</a>
+      `;
     }
 
-    // Aggiungo marker sprite al globo
-    videos.forEach(video => {
-      const sprite = createSprite(`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`);
-      // Posizione in coordinate XYZ (raggio 1 + altezza)
-      const radius = 1.01;
-      const phi = (90 - video.lat) * (Math.PI / 180);
-      const theta = (video.lng + 180) * (Math.PI / 180);
+    // Nascondi tooltip
+    function hideTooltip() {
+      tooltip.style.display = 'none';
+      tooltip.innerHTML = '';
+    }
 
-      sprite.position.set(
-        radius * Math.sin(phi) * Math.cos(theta),
-        radius * Math.cos(phi),
-        radius * Math.sin(phi) * Math.sin(theta)
-      );
-
-      // Salvo url nel sprite per aprire video
-      sprite.userData = { url: video.url };
-
-      globe.scene().add(sprite);
+    // Gestisco click sui punti
+    globe.onPointClick(point => {
+      // Se tooltip è già aperto su questo punto, chiudo
+      if (tooltip.style.display === 'block') {
+        hideTooltip();
+      } else {
+        // Mostro tooltip nella posizione mouse (aggiornata via evento globale click)
+        // Qui serve passare evento mouse, quindi mettiamo listener globale
+      }
     });
 
-    // Gestisco click: controllo se clicco su sprite
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    function onClick(event) {
-      const rect = globe.renderer().domElement.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
+    // Listener globale per click che mostra tooltip se clicco su punto
+    globe.renderer().domElement.addEventListener('click', event => {
+      // Trovo se click è sopra un punto
+      const mouse = {
+        x: (event.clientX / window.innerWidth) * 2 - 1,
+        y: -(event.clientY / window.innerHeight) * 2 + 1
+      };
+      const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, globe.camera());
+      const intersects = raycaster.intersectObjects(globe.pointsData().map(p => globe.pointObjects().get(p)));
 
-      const intersects = raycaster.intersectObjects(globe.scene().children);
+      // Trovo punto più vicino cliccato (usiamo globe api punti)
+      const intersectedPoint = globe.pointObjects().find(obj => obj.material.color.getStyle() === 'limegreen' && intersects.some(i => i.object === obj));
 
-      for (let i = 0; i < intersects.length; i++) {
-        const obj = intersects[i].object;
-        if (obj.userData && obj.userData.url) {
-          window.open(obj.userData.url, '_blank');
-          break;
-        }
+      if (intersectedPoint) {
+        // Punto cliccato trovato, cerco video corrispondente
+        const index = globe.pointObjects().indexOf(intersectedPoint);
+        const video = videos[index];
+        showTooltip(event, video);
+      } else {
+        hideTooltip();
       }
-    }
+    });
 
-    globe.renderer().domElement.addEventListener('click', onClick);
+    // Nascondo tooltip cliccando fuori
+    window.addEventListener('click', e => {
+      if (!tooltip.contains(e.target) && !globe.renderer().domElement.contains(e.target)) {
+        hideTooltip();
+      }
+    });
 
   </script>
 </body>
