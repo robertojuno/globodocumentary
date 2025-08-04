@@ -1,165 +1,143 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <title>Globo Video Live con Miniature</title>
-  <style>
-    body { margin: 0; background: black; overflow: hidden; }
-    #globeViz { width: 100vw; height: 100vh; position: relative; }
-    #thumbnail {
-      position: absolute;
-      display: none;
-      border: 2px solid limegreen;
-      border-radius: 6px;
-      background: #000c;
-      padding: 5px;
-      cursor: pointer;
-      transition: opacity 0.3s ease;
-      max-width: 160px;
-    }
-    #thumbnail img {
-      display: block;
-      width: 100%;
-      border-radius: 4px;
-    }
-  </style>
-  <script src="https://unpkg.com/globe.gl"></script>
-  <script src="https://cdn.jsdelivr.net/npm/topojson@3"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mappa Mondo Interattiva</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoTJsH/RvUpbmUAPzV53HtKzS9zFzFXWwF8/W+4="
+     crossorigin=""/>
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; background-color: #f0f0f0; }
+        #map {
+            height: 100vh; /* La mappa occupa tutta l'altezza della finestra */
+            width: 100%;
+            background-color: #e0e0e0; /* Colore di fallback */
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 1000; /* Assicura che sia sopra la mappa */
+            max-width: 300px;
+            font-size: 0.9em;
+        }
+        .video-thumbnail {
+            width: 100%;
+            max-width: 200px;
+            height: auto;
+            display: block;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .popup-content a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .popup-content a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-  <div id="globeViz"></div>
-  <a id="thumbnail" target="_blank" rel="noopener noreferrer">
-    <img src="" alt="Video thumbnail" />
-  </a>
 
-<script>
-  const videos = [
-    {
-      lat: 43.8562586,
-      lng: 18.41330763,
-      text: 'Sarajevo',
-      link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk',
-      thumb: 'https://img.youtube.com/vi/GqQKJHXoUD8/hqdefault.jpg'
-    },
-    {
-      lat: 28.0026,
-      lng: 86.8528,
-      text: 'Everest Basecamp',
-      link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9',
-      thumb: 'https://img.youtube.com/vi/q7_jPoJM-Jc/hqdefault.jpg'
-    }
-  ];
+    <div id="map"></div>
+    <div class="info-panel">
+        <h2>Mappa Mondo Interattiva</h2>
+        <p>Esplora il mondo! La mappa mostra un tema "giorno" o "notte" approssimativo in base all'ora locale.</p>
+        <p>Clicca sui segnaposti per scoprire di più e guardare video.</p>
+    </div>
 
-  const globeEl = document.getElementById('globeViz');
-  const thumbnailEl = document.getElementById('thumbnail');
-  const thumbImg = thumbnailEl.querySelector('img');
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-2bZLp68e5n5Uq66hJvY0pWlY1F+0XFzF1rX9z4q9k+0="
+     crossorigin=""></script>
+    <script>
+        // Funzione per determinare se è giorno o notte (approssimativo)
+        function isDayTime() {
+            const now = new Date();
+            const hours = now.getHours();
+            // Consideriamo giorno tra le 6 del mattino e le 7 di sera
+            return hours >= 6 && hours < 19;
+        }
 
-  // Funzione per calcolare posizione del sole (approx) e aggiornare luce
-  // Semplificata per demo: luce direzionale segue la posizione basata su ora UTC
-  function updateSunLight(globe) {
-    const now = new Date();
-    const hoursUTC = now.getUTCHours() + now.getUTCMinutes()/60;
-    // latitudine sole (declinazione) approssimativa = 23.5° * sin(2π * (giornoAnno/365))
-    // ma per semplicità: illuminiamo da est-ovest in base all'ora
-    const lng = (hoursUTC / 24) * 360 - 180; // -180 a +180 lungo l'equatore
-    const lat = 0;
+        // Determina lo stile della mappa in base all'ora
+        const mapStyleUrlDay = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'; // Stile giorno OpenStreetMap
+        const mapStyleUrlNight = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'; // Stile notte (Stadia Maps - assicurati di controllare i termini d'uso)
 
-    // Calcola posizione della luce nel sistema 3D (x,y,z)
-    const rad = Math.PI / 180;
-    const x = Math.cos(lat * rad) * Math.cos(lng * rad);
-    const y = Math.sin(lat * rad);
-    const z = Math.cos(lat * rad) * Math.sin(lng * rad);
+        const currentMapStyle = isDayTime() ? mapStyleUrlDay : mapStyleUrlNight;
 
-    globe.scene().children.forEach(obj => {
-      if(obj.type === "DirectionalLight") {
-        obj.position.set(x, y, z);
-        obj.intensity = 1;
-      }
-    });
-  }
+        // Inizializza la mappa Leaflet
+        const map = L.map('map').setView([0, 0], 2); // Centrata sul mondo con zoom livello 2
 
-  const globe = Globe()(globeEl)
-    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-    .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundColor('black')
-    .showAtmosphere(true)
-    .atmosphereColor('rgba(0,255,0,0.3)')
-    .atmosphereAltitude(0.15)
-    .pointOfView({ lat: 20, lng: 0, altitude: 2 })
-    .labelsData(videos)
-    .labelLat(d => d.lat)
-    .labelLng(d => d.lng)
-    .labelText(d => '') // Nascondiamo testo etichetta per fare solo miniatura
-    .labelSize(0)
-    .labelColor(() => 'white');
+        L.tileLayer(currentMapStyle, {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            + (isDayTime() ? '' : ' | Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, © <a href="https://stadiamaps.com/copyright/">Stadia Maps</a> & <a href="https://openmaptiles.org/">OpenMapTiles</a> & <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+        }).addTo(map);
 
-  // Carichiamo confini paesi
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-    .then(res => res.json())
-    .then(worldData => {
-      const countries = topojson.feature(worldData, worldData.objects.countries).features;
-      globe.polygonsData(countries)
-        .polygonCapColor(() => 'rgba(0,0,0,0)')
-        .polygonStrokeColor(() => '#00ff00')
-        .polygonStrokeWidth(0.8)
-        .polygonAltitude(0.01);
-    });
+        // Dati dei segnaposti (localizzazione e link video)
+        const locations = [
+            {
+                name: "Torre Eiffel, Parigi",
+                coords: [48.8584, 2.2945],
+                description: "La famosa Torre Eiffel, simbolo di Parigi.",
+                videoLink: "https://www.youtube.com/watch?v=R9_mK037JpM", // Sostituisci con il tuo link
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%2827_July_2013%29.jpg/1200px-Tour_Eiffel_Wikimedia_Commons_%2827_July_2013%29.jpg" // Sostituisci con la tua miniatura
+            },
+            {
+                name: "Colosseo, Roma",
+                coords: [41.8902, 12.4922],
+                description: "L'antico anfiteatro romano, icona di Roma.",
+                videoLink: "https://www.youtube.com/watch?v=F_fGvNf0c6c",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1200px-Colosseo_2020.jpg"
+            },
+            {
+                name: "Statua della Libertà, New York",
+                coords: [40.6892, -74.0445],
+                description: "Un simbolo di libertà e democrazia.",
+                videoLink: "https://www.youtube.com/watch?v=sI9f-hKzYgA",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Statue_of_Liberty%2C_NY.jpg/1200px-Statue_of_Liberty%2C_NY.jpg"
+            },
+            {
+                name: "Taj Mahal, Agra",
+                coords: [27.1751, 78.0421],
+                description: "Un magnifico mausoleo in marmo bianco, patrimonio UNESCO.",
+                videoLink: "https://www.youtube.com/watch?v=L-K01Yy-y_Q",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Taj_Mahal_in_August_2017.jpg/1200px-Taj_Mahal_in_August_2017.jpg"
+            },
+            {
+                name: "Sarajevo",
+                coords: [43.8584, 18.2447],
+                description: "La capitale della Bosnia ed Erzegovina, una città ricca di storia e cultura.",
+                videoLink: "https://youtu.be/GqQKJHXoUD8?si=L-eus1QDnylT5eIj",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Sarajevo_panorama_by_Adnan_Brkic.jpg/1200px-Sarajevo_panorama_by_Adnan_Brkic.jpg" // Esempio di miniatura
+            },
+            {
+                name: "Campo Base Everest",
+                coords: [28.0043, 86.8575],
+                description: "Il punto di partenza per l'ascesa al Monte Everest, nel cuore dell'Himalaya.",
+                videoLink: "https://youtu.be/q7_jPoJM-Jc?si=02AiyBZHxfew8iRZ",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Everest_Base_Camp_Nepal_2015.jpg/1200px-Everest_Base_Camp_Nepal_2015.jpg" // Esempio di miniatura
+            }
+            // Aggiungi qui altri luoghi
+        ];
 
-  // Pallini verdi lampeggianti
-  globe.pointsData(videos)
-    .pointLat('lat')
-    .pointLng('lng')
-    .pointColor(() => 'limegreen')
-    .pointAltitude(0.03)
-    .pointRadius(0.02)
-    .pointsTransitionDuration(0);
-
-  // Animazione pulsante lampeggiante
-  let pulseUp = true;
-  let radius = 0.02;
-  setInterval(() => {
-    if (pulseUp) radius += 0.001;
-    else radius -= 0.001;
-    if (radius >= 0.03) pulseUp = false;
-    if (radius <= 0.02) pulseUp = true;
-    globe.pointRadius(radius);
-  }, 80);
-
-  // Al click su pallino mostriamo miniatura con link
-  globe.onPointClick(d => {
-    // Calcola posizione schermo del punto cliccato
-    const { lat, lng, link, thumb } = d;
-    const pos3D = globe.getCoords(lat, lng);
-    const vector = new THREE.Vector3(...pos3D).project(globe.camera());
-
-    // Converti coordinate normalizzate (-1..1) in pixel
-    const x = (vector.x + 1) / 2 * window.innerWidth;
-    const y = (-vector.y + 1) / 2 * window.innerHeight;
-
-    // Posiziona e mostra miniatura
-    thumbnailEl.style.left = `${x}px`;
-    thumbnailEl.style.top = `${y}px`;
-    thumbImg.src = thumb;
-    thumbnailEl.href = link;
-    thumbnailEl.style.display = 'block';
-    thumbnailEl.style.opacity = '1';
-  });
-
-  // Cliccando fuori miniatura la nascondiamo
-  window.addEventListener('click', e => {
-    if (!thumbnailEl.contains(e.target)) {
-      thumbnailEl.style.opacity = '0';
-      setTimeout(() => { thumbnailEl.style.display = 'none'; }, 300);
-    }
-  });
-
-  // Aggiungiamo luce direzionale "sole"
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-  globe.scene().add(dirLight);
-
-  // Aggiorniamo la luce ogni 10 secondi
-  setInterval(() => updateSunLight(globe), 10000);
-  updateSunLight(globe);
-</script>
+        // Aggiungi i segnaposti alla mappa
+        locations.forEach(location => {
+            const popupContent = `
+                <div class="popup-content">
+                    <h3>${location.name}</h3>
+                    <p>${location.description}</p>
+                    ${location.thumbnail ? `<img src="${location.thumbnail}" class="video-thumbnail" alt="Miniatura video">` : ''}
+                    <p><a href="${location.videoLink}" target="_blank">Guarda il video</a></p>
+                </div>
+            `;
+            L.marker(location.coords).addTo(map)
+                .bindPopup(popupContent);
+        });
+    </script>
 </body>
 </html>
