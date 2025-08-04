@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Il mio Globo Video</title>
+    <style>
+      body { margin: 0; }
+      canvas { display: block; }
+    </style>
+    <script src="https://unpkg.com/globe.gl"></script>
+  </head>
+  <body>
+    <div id="globeViz" style="width: 100vw; height: 100vh;"></div>
+    <script>
+      const data = [
+        {
+          lat: 43.8562586,
+          lng: 18.41330763,
+          text: '🎥 Sarajevo',
+          link: 'https://youtube.com/watch?v=XXXXXXX'
+        },
+        {
+          lat: 27.988,
+          lng: 86.834,
+          text: '🎬 everest ',
+          link: 'https://youtube.com/watch?v=YYYYYYY'
+        }
+      ];
+
+      const globe = Globe()(document.getElementById('globeViz'))
+        .pointOfView({ lat: 20, lng: 0, altitude: 2 })
+        .labelsData(data)
+        .labelText('text')
+        .labelSize(1.6)
+        .labelColor(() => 'white')
+        .onLabelClick(d => window.open(d.link, '_blank'));
+    </script>
+  </body>
+</html>
