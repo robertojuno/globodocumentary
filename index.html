@@ -2,23 +2,35 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Globo Video Live</title>
+  <title>Globo Video Live con Miniature</title>
   <style>
     body { margin: 0; background: black; overflow: hidden; }
-    #globeViz { width: 100vw; height: 100vh; }
-    .label-link {
-      color: white;
+    #globeViz { width: 100vw; height: 100vh; position: relative; }
+    #thumbnail {
+      position: absolute;
+      display: none;
+      border: 2px solid limegreen;
+      border-radius: 6px;
+      background: #000c;
+      padding: 5px;
       cursor: pointer;
-      text-shadow: 0 0 5px black;
-      user-select: none;
+      transition: opacity 0.3s ease;
+      max-width: 160px;
+    }
+    #thumbnail img {
+      display: block;
+      width: 100%;
+      border-radius: 4px;
     }
   </style>
   <script src="https://unpkg.com/globe.gl"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/topojson@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson@3"></script>
 </head>
 <body>
   <div id="globeViz"></div>
+  <a id="thumbnail" target="_blank" rel="noopener noreferrer">
+    <img src="" alt="Video thumbnail" />
+  </a>
 
 <script>
   const videos = [
@@ -26,26 +38,62 @@
       lat: 43.8562586,
       lng: 18.41330763,
       text: 'Sarajevo',
-      link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk'
+      link: 'https://youtu.be/GqQKJHXoUD8?si=LWFZ9f0ckd681Trk',
+      thumb: 'https://img.youtube.com/vi/GqQKJHXoUD8/hqdefault.jpg'
     },
     {
       lat: 28.0026,
       lng: 86.8528,
       text: 'Everest Basecamp',
-      link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9'
+      link: 'https://youtu.be/q7_jPoJM-Jc?si=x0bdF3F7mz2H5CY9',
+      thumb: 'https://img.youtube.com/vi/q7_jPoJM-Jc/hqdefault.jpg'
     }
   ];
 
-  const globe = Globe()(document.getElementById('globeViz'))
+  const globeEl = document.getElementById('globeViz');
+  const thumbnailEl = document.getElementById('thumbnail');
+  const thumbImg = thumbnailEl.querySelector('img');
+
+  // Funzione per calcolare posizione del sole (approx) e aggiornare luce
+  // Semplificata per demo: luce direzionale segue la posizione basata su ora UTC
+  function updateSunLight(globe) {
+    const now = new Date();
+    const hoursUTC = now.getUTCHours() + now.getUTCMinutes()/60;
+    // latitudine sole (declinazione) approssimativa = 23.5° * sin(2π * (giornoAnno/365))
+    // ma per semplicità: illuminiamo da est-ovest in base all'ora
+    const lng = (hoursUTC / 24) * 360 - 180; // -180 a +180 lungo l'equatore
+    const lat = 0;
+
+    // Calcola posizione della luce nel sistema 3D (x,y,z)
+    const rad = Math.PI / 180;
+    const x = Math.cos(lat * rad) * Math.cos(lng * rad);
+    const y = Math.sin(lat * rad);
+    const z = Math.cos(lat * rad) * Math.sin(lng * rad);
+
+    globe.scene().children.forEach(obj => {
+      if(obj.type === "DirectionalLight") {
+        obj.position.set(x, y, z);
+        obj.intensity = 1;
+      }
+    });
+  }
+
+  const globe = Globe()(globeEl)
     .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
     .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
     .backgroundColor('black')
     .showAtmosphere(true)
     .atmosphereColor('rgba(0,255,0,0.3)')
     .atmosphereAltitude(0.15)
-    .pointOfView({ lat: 20, lng: 0, altitude: 2 });
+    .pointOfView({ lat: 20, lng: 0, altitude: 2 })
+    .labelsData(videos)
+    .labelLat(d => d.lat)
+    .labelLng(d => d.lng)
+    .labelText(d => '') // Nascondiamo testo etichetta per fare solo miniatura
+    .labelSize(0)
+    .labelColor(() => 'white');
 
-  // Carica i confini dei paesi e disegna contorni verdi sottili
+  // Carichiamo confini paesi
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
     .then(res => res.json())
     .then(worldData => {
@@ -53,11 +101,11 @@
       globe.polygonsData(countries)
         .polygonCapColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(() => '#00ff00')
-        .polygonStrokeWidth(0.7)
+        .polygonStrokeWidth(0.8)
         .polygonAltitude(0.01);
     });
 
-  // Pallini lampeggianti verdi per i video
+  // Pallini verdi lampeggianti
   globe.pointsData(videos)
     .pointLat('lat')
     .pointLng('lng')
@@ -66,49 +114,52 @@
     .pointRadius(0.02)
     .pointsTransitionDuration(0);
 
-  // Animazione lampeggio pallini
-  let pulseDirection = 1;
-  let pulseRadius = 0.02;
+  // Animazione pulsante lampeggiante
+  let pulseUp = true;
+  let radius = 0.02;
   setInterval(() => {
-    pulseRadius += 0.002 * pulseDirection;
-    if(pulseRadius > 0.035) pulseDirection = -1;
-    if(pulseRadius < 0.02) pulseDirection = 1;
-    globe.pointRadius(pulseRadius);
-  }, 100);
+    if (pulseUp) radius += 0.001;
+    else radius -= 0.001;
+    if (radius >= 0.03) pulseUp = false;
+    if (radius <= 0.02) pulseUp = true;
+    globe.pointRadius(radius);
+  }, 80);
 
-  // Etichette cliccabili (testo) con link ai video
-  globe.labelsData(videos)
-    .labelLat('lat')
-    .labelLng('lng')
-    .labelText(d => d.text)
-    .labelSize(1.6)
-    .labelColor(() => 'white')
-    .labelDotRadius(0)
-    .labelResolution(2)
-    .onLabelClick(d => window.open(d.link, '_blank'));
+  // Al click su pallino mostriamo miniatura con link
+  globe.onPointClick(d => {
+    // Calcola posizione schermo del punto cliccato
+    const { lat, lng, link, thumb } = d;
+    const pos3D = globe.getCoords(lat, lng);
+    const vector = new THREE.Vector3(...pos3D).project(globe.camera());
 
-  // Luce solare per effetto giorno/notte semplificato
-  const scene = globe.scene();
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-  scene.add(sunLight);
+    // Converti coordinate normalizzate (-1..1) in pixel
+    const x = (vector.x + 1) / 2 * window.innerWidth;
+    const y = (-vector.y + 1) / 2 * window.innerHeight;
 
-  function updateSunPosition() {
-    const now = new Date();
-    const secondsInDay = 86400;
-    const time = (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()) / secondsInDay;
-    const lng = (time * 360) - 180;
-    const lat = 0;
-    const phi = (90 - lat) * Math.PI / 180;
-    const theta = (lng + 180) * Math.PI / 180;
-    const radius = 5;
-    const x = radius * Math.sin(phi) * Math.cos(theta);
-    const y = radius * Math.cos(phi);
-    const z = radius * Math.sin(phi) * Math.sin(theta);
-    sunLight.position.set(x, y, z);
-  }
+    // Posiziona e mostra miniatura
+    thumbnailEl.style.left = `${x}px`;
+    thumbnailEl.style.top = `${y}px`;
+    thumbImg.src = thumb;
+    thumbnailEl.href = link;
+    thumbnailEl.style.display = 'block';
+    thumbnailEl.style.opacity = '1';
+  });
 
-  updateSunPosition();
-  setInterval(updateSunPosition, 60000);
+  // Cliccando fuori miniatura la nascondiamo
+  window.addEventListener('click', e => {
+    if (!thumbnailEl.contains(e.target)) {
+      thumbnailEl.style.opacity = '0';
+      setTimeout(() => { thumbnailEl.style.display = 'none'; }, 300);
+    }
+  });
+
+  // Aggiungiamo luce direzionale "sole"
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  globe.scene().add(dirLight);
+
+  // Aggiorniamo la luce ogni 10 secondi
+  setInterval(() => updateSunLight(globe), 10000);
+  updateSunLight(globe);
 </script>
 </body>
 </html>
